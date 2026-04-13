@@ -1,0 +1,233 @@
+# Node A - Bluetooth
+# ==========================================
+bluetooth.start_uart_service()
+serial.redirect(SerialPin.P1, SerialPin.P2, BaudRate.BAUD_RATE115200)
+
+connected = False
+alarm_active = False
+
+flag_fall = False
+flag_stop = False
+flag_med = False
+
+basic.show_string("R")
+
+def on_bluetooth_connected():
+    global connected
+    connected = True
+    if not alarm_active:
+        basic.show_icon(IconNames.HEART)
+
+def on_bluetooth_disconnected():
+    global connected
+    connected = False
+    if not alarm_active:
+        basic.show_string("R")
+
+bluetooth.on_bluetooth_connected(on_bluetooth_connected)
+bluetooth.on_bluetooth_disconnected(on_bluetooth_disconnected)
+
+# Read from Serial (Node B)
+def on_serial_received():
+    global alarm_active, flag_fall, flag_stop, flag_med
+    msg = serial.read_until(serial.delimiters(Delimiters.NEW_LINE))
+    
+    if "stop" in msg:
+        alarm_active = False
+        flag_stop = True
+    elif "fall" in msg:
+        if not alarm_active:
+            alarm_active = True
+            flag_fall = True
+    elif "med" in msg:
+        flag_med = True
+
+serial.on_data_received(serial.delimiters(Delimiters.NEW_LINE), on_serial_received)
+
+# Read from Bluetooth (Web App)
+def on_uart_data_received():
+    msg = bluetooth.uart_read_until(serial.delimiters(Delimiters.NEW_LINE))
+    if "remind" in msg:
+        serial.write_line("remind")
+
+bluetooth.on_uart_data_received(serial.delimiters(Delimiters.NEW_LINE), on_uart_data_received)
+
+def on_forever():
+    global alarm_active, flag_fall, flag_stop, flag_med, connected
+    
+    if flag_stop:
+        flag_stop = False
+        bluetooth.uart_write_string("stop\n")
+        pins.digital_write_pin(DigitalPin.P8, 0)
+        if connected:
+            basic.show_icon(IconNames.HEART)
+        else:
+            basic.show_string("R")
+            
+    if flag_fall:
+        flag_fall = False
+        bluetooth.uart_write_string("fall\n")
+        basic.show_icon(IconNames.NO)
+        
+    if flag_med:
+        flag_med = False
+        bluetooth.uart_write_string("med_open\n")
+        led.plot(0, 0)
+        basic.pause(100)
+        led.unplot(0, 0)
+
+    if alarm_active:
+        pins.digital_write_pin(DigitalPin.P8, 1)
+        basic.pause(200)
+        pins.digital_write_pin(DigitalPin.P8, 0)
+        basic.pause(200)
+    else:
+        basic.pause(100)
+
+basic.forever(on_forever)
+
+
+
+# Node B - Hub
+# ==========================================
+radio.set_group(1)
+serial.redirect(SerialPin.P1, SerialPin.P2, BaudRate.BAUD_RATE115200)
+
+is_med_open = False
+alarm_active = False
+
+music.set_volume(255)
+basic.show_string("B")
+
+# Read from Radio (Node C)
+def on_received_string(receivedString):
+    global alarm_active
+    
+    if receivedString == "fall":
+        alarm_active = True
+        serial.write_line("fall")
+        basic.show_icon(IconNames.SAD)
+        
+    elif receivedString == "stop":
+        alarm_active = False
+        music.stop_all_sounds()
+        serial.write_line("stop")
+        basic.show_icon(IconNames.YES)
+        basic.pause(1000)
+        basic.show_string("B")
+        
+radio.on_received_string(on_received_string)
+
+# Read from Serial (Node A)
+def on_serial_received():
+    msg = serial.read_until(serial.delimiters(Delimiters.NEW_LINE))
+    if "remind" in msg:
+        radio.send_string("remind")
+        # Draw a custom Bell icon
+        basic.show_leds("""
+            . . # . .
+            . # # # .
+            . # # # .
+            # # # # #
+            . . # . .
+            """)
+        basic.pause(500)
+        basic.show_string("B")
+
+serial.on_data_received(serial.delimiters(Delimiters.NEW_LINE), on_serial_received)
+
+# Pillbox ultrasonic sensor
+def on_forever_sonar():
+    global is_med_open, alarm_active
+    distance = sonar.ping(DigitalPin.P8, DigitalPin.P15, PingUnit.CENTIMETERS)
+    
+    if distance > 10 and distance != 0:
+        if not is_med_open:
+            is_med_open = True
+            serial.write_line("med_open")
+            basic.show_leds("""
+                . # # # .
+                # . . . #
+                # . . . #
+                # . . . #
+                . # # # .
+                """)
+    else:
+        if is_med_open:
+            is_med_open = False
+            if not alarm_active:
+                basic.show_string("B")
+    basic.pause(500)
+basic.forever(on_forever_sonar)
+
+# Alarm status
+def on_forever_alarm():
+    global alarm_active
+    if alarm_active:
+        music.play_tone(988, 200)
+        basic.pause(200)
+    else:
+        basic.pause(200)
+basic.forever(on_forever_alarm)
+
+
+
+# Node C - Wearable
+# ==========================================
+radio.set_group(1)
+radio.set_transmit_power(7)
+music.set_volume(255)
+
+is_alerting = False
+last_stop_time = 0
+COOLDOWN_MS = 4000
+
+basic.show_string("C")
+
+# Fall detection
+def trigger_fall():
+    global is_alerting, last_stop_time
+    
+    if input.running_time() - last_stop_time < COOLDOWN_MS:
+        return
+
+    if not is_alerting:
+        is_alerting = True
+        radio.send_string("fall")
+        basic.show_icon(IconNames.SURPRISED)
+
+input.on_gesture(Gesture.EIGHT_G, trigger_fall)
+input.on_gesture(Gesture.SHAKE, trigger_fall)
+input.on_button_pressed(Button.A, trigger_fall)
+
+# Stop fall alarm
+def on_button_pressed_b():
+    global is_alerting, last_stop_time
+    
+    last_stop_time = input.running_time()
+    is_alerting = False
+    
+    radio.send_string("stop")
+    basic.show_icon(IconNames.YES)
+    basic.pause(1000)
+    basic.show_string("C")
+
+input.on_button_pressed(Button.B, on_button_pressed_b)
+
+# Read from Radio (Node B)
+def on_received_string(receivedString):
+    if receivedString == "remind":
+        # Draw a custom Bell icon
+        basic.show_leds("""
+            . . # . .
+            . # # # .
+            . # # # .
+            # # # # #
+            . . # . .
+            """)
+        for i in range(3):
+            music.play_tone(988, 200)
+            basic.pause(200)
+        basic.show_string("C")
+
+radio.on_received_string(on_received_string)
