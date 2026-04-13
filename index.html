@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elderly Care Gateway</title>
+    <style>
+        :root {
+            --primary: #0078D7;
+            --primary-hover: #005a9e;
+            --success: #28a745;
+            --danger: #dc3545;
+            --warning: #ffc107;
+            --dark: #343a40;
+            --bg: #f4f7f6;
+            --card-bg: #ffffff;
+        }
+        
+        * { 
+            box-sizing: border-box; 
+        }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header { 
+            text-align: center; 
+            margin-bottom: 20px; 
+        }
+
+        .header h1 { 
+            margin: 0 0 10px 0; 
+            color: var(--dark); 
+        }
+
+        .grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 15px; 
+            margin-bottom: 20px; 
+        }
+
+        @media (max-width: 600px) { 
+            .grid { grid-template-columns: 1fr; } 
+        }
+
+        .card { 
+            background: var(--card-bg); 
+            padding: 20px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
+        }
+
+        .status-panel { 
+            text-align: center; 
+            padding: 25px 15px; 
+            border-radius: 10px; 
+            border: 2px solid #eee; 
+            transition: all 0.3s; 
+        }
+
+        .status-panel h3 { 
+            margin: 0 0 10px 0; 
+            font-size: 18px; 
+            color: #666; 
+        }
+
+        .status-value { 
+            font-size: 24px; 
+            font-weight: bold; 
+        }
+        
+        .panel-safe { border-color: var(--success); }
+        .panel-neutral { border-color: #ddd; }
+
+        @keyframes pulse {
+            0% { background-color: #ffeaea; box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.4); }
+            70% { background-color: #ffcdd2; box-shadow: 0 0 0 15px rgba(220, 53, 69, 0); }
+            100% { background-color: #ffeaea; box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+        }
+
+        .alert-active { 
+            border-color: var(--danger) !important; 
+            animation: pulse 1.5s infinite; 
+            color: var(--danger); 
+        }
+
+        .form-group { 
+            margin-bottom: 15px; 
+        }
+
+        .form-group label { 
+            display: block; 
+            margin-bottom: 5px; 
+            font-weight: 500; 
+            font-size: 14px; 
+        }
+
+        .form-group input { 
+            width: 100%; 
+            padding: 10px; 
+            border: 1px solid #ddd; 
+            border-radius: 6px; 
+            font-family: monospace; 
+        }
+
+        button {
+            background-color: var(--primary); 
+            color: white; 
+            border: none; 
+            padding: 12px 20px;
+            font-size: 15px; 
+            font-weight: bold; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            width: 100%; 
+            transition: 0.2s; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            gap: 8px;
+        }
+
+        button:hover { background-color: var(--primary-hover); }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        
+        .btn-test-container { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr 1fr; 
+            gap: 10px; 
+            margin-top: 10px; 
+        }
+
+        .btn-danger { background-color: var(--danger); }
+        .btn-danger:hover { background-color: #c82333; }
+        .btn-warning { background-color: var(--warning); color: #000; }
+        .btn-warning:hover { background-color: #e0a800; }
+        .btn-success { background-color: var(--success); }
+        .btn-success:hover { background-color: #218838; }
+
+        .terminal {
+            background: #1e1e1e; 
+            color: #a9b7c6; 
+            padding: 15px; 
+            border-radius: 8px; 
+            height: 250px;
+            overflow-y: auto; 
+            font-family: 'Consolas', monospace; 
+            font-size: 13px; 
+            line-height: 1.6; 
+            text-align: left;
+        }
+
+        .log-time { color: #808080; }
+        .log-info { color: #6a8759; }
+        .log-warn { color: #cc7832; }
+        .log-err { color: #ff5555; }
+        .log-sys { color: #9876aa; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Elderly Care Gateway</h1>
+        <p>Bluetooth &rarr; Web App &rarr; Telegram Notification</p>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <h3>Telegram Setup</h3>
+            <div class="form-group">
+                <label>Bot Token</label>
+                <input type="password" id="tgToken" placeholder="123456789:ABCdefGHI...">
+            </div>
+            <div class="form-group">
+                <label>Chat ID</label>
+                <input type="text" id="tgChatId" placeholder="e.g. 123456789">
+            </div>
+            <button onclick="saveSettings()" class="btn-success" style="margin-bottom: 10px;">Save Settings</button>
+        </div>
+
+        <div class="card">
+            <h3>Bluetooth Connection</h3>
+            <div style="margin: 20px 0; text-align: center; font-size: 16px;">
+                Status: <strong id="btStatusText" style="color: #666;">Disconnected 🔴</strong>
+            </div>
+            <button id="connectBtn" onclick="connectBluetooth()">Connect to Micro:bit</button>
+            <button id="disconnectBtn" onclick="disconnectBluetooth()" class="btn-danger" style="display: none; margin-top: 10px;">Disconnect</button>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="card status-panel panel-safe" id="fallPanel">
+            <h3>Fall Sensor</h3>
+            <div class="status-value" id="fallStatus" style="color: var(--success);">🟢 Safe</div>
+        </div>
+        <div class="card status-panel panel-neutral" id="medPanel">
+            <h3>Medicine Box</h3>
+            <div class="status-value" id="medStatus" style="color: #666;">⚪ Closed</div>
+        </div>
+    </div>
+    <div class="card">
+        <h3>Remote Commands</h3>
+        <p style="font-size: 14px; color: #666;">Notify the elderly to take medicine:</p>
+        <button onclick="sendReminder()" class="btn-warning">
+            🔔 Send Med Reminder
+        </button>
+    </div>
+    <div class="card">
+        <h3 style="margin-top: 0; display: flex; justify-content: space-between;">
+            <span>System Console</span>
+            <span style="font-size: 14px; font-weight: normal; cursor: pointer; color: var(--primary);" onclick="clearLog()">Clear Log</span>
+        </h3>
+        <div id="log-container" class="terminal"></div>
+        
+        <div style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 15px;">
+            <label style="font-size: 14px; font-weight: bold;">Simulate Device Triggers:</label>
+            <div class="btn-test-container">
+                <button class="btn-danger" onclick="processMessage('fall')">Fall</button>
+                <button class="btn-warning" onclick="processMessage('stop')">Stop</button>
+                <button class="btn-success" onclick="processMessage('med_open')">Med Box</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const UART_RX_CHAR_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+        let btWriteCharacteristic;
+        const logContainer = document.getElementById('log-container');
+        let bluetoothDevice;
+        let rxBuffer = ""; 
+
+        const UART_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+        const UART_TX_CHAR_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+
+        document.addEventListener("DOMContentLoaded", () => {
+            // Load saved config
+            const token = localStorage.getItem('tgToken');
+            const chatId = localStorage.getItem('tgChatId');
+            
+            if (token) document.getElementById('tgToken').value = token;
+            if (chatId) document.getElementById('tgChatId').value = chatId;
+            
+            updateUIState('fall', 'safe');
+            log('App ready. Waiting for connection.', 'log-sys');
+        });
+
+        function saveSettings() {
+            localStorage.setItem('tgToken', document.getElementById('tgToken').value.trim());
+            localStorage.setItem('tgChatId', document.getElementById('tgChatId').value.trim());
+            log('Telegram credentials saved to local storage.', 'log-info');
+            alert("Settings saved!");
+        }
+
+        function log(message, type = '') {
+            const now = new Date();
+            const time = now.toLocaleTimeString('en-US', { hour12: false });
+            logContainer.innerHTML += `<div class="${type}"><span class="log-time">[${time}]</span> ${message}</div>`;
+            logContainer.scrollTop = logContainer.scrollHeight; 
+        }
+
+        function clearLog() {
+            logContainer.innerHTML = '';
+            log('Console cleared.', 'log-sys');
+        }
+
+        function updateUIState(type, state) {
+            const fallPanel = document.getElementById('fallPanel');
+            const fallStatus = document.getElementById('fallStatus');
+            const medPanel = document.getElementById('medPanel');
+            const medStatus = document.getElementById('medStatus');
+
+            if (type === 'fall') {
+                if (state === 'alert') {
+                    fallPanel.className = 'card status-panel alert-active';
+                    fallStatus.innerText = "🔴 FALL DETECTED";
+                    fallStatus.style.color = "var(--danger)";
+                } else if (state === 'safe') {
+                    fallPanel.className = 'card status-panel panel-safe';
+                    fallStatus.innerText = "🟢 Safe";
+                    fallStatus.style.color = "var(--success)";
+                }
+            } else if (type === 'med') {
+                medPanel.style.borderColor = "var(--success)";
+                medStatus.innerText = "🟢 Box Opened";
+                medStatus.style.color = "var(--success)";
+                
+                // reset visually after 5s
+                setTimeout(() => {
+                    medPanel.style.borderColor = "#ddd";
+                    medStatus.innerText = "⚪ Closed";
+                    medStatus.style.color = "#666";
+                }, 5000);
+            }
+        }
+
+        async function connectBluetooth() {
+            try {
+                rxBuffer = ""; 
+                log("Scanning for micro:bit...", "log-sys");
+                
+                bluetoothDevice = await navigator.bluetooth.requestDevice({
+                    filters: [{ namePrefix: 'BBC micro:bit' }],
+                    optionalServices: [UART_SERVICE_UUID] 
+                });
+
+                bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
+                
+                const server = await bluetoothDevice.gatt.connect();
+                const service = await server.getPrimaryService(UART_SERVICE_UUID);
+                const characteristic = await service.getCharacteristic(UART_TX_CHAR_UUID);
+                btWriteCharacteristic = await service.getCharacteristic(UART_RX_CHAR_UUID);
+                
+                await characteristic.startNotifications();
+                characteristic.addEventListener('characteristicvaluechanged', handleIncomingData);
+
+                document.getElementById('btStatusText').innerHTML = "Connected 🟢";
+                document.getElementById('connectBtn').style.display = 'none';
+                document.getElementById('disconnectBtn').style.display = 'block';
+                log(`Connected to ${bluetoothDevice.name}`, "log-info");
+                
+                updateUIState('fall', 'safe');
+
+            } catch (error) {
+                log(`Bluetooth connect error: ${error.message}`, "log-err");
+            }
+        }
+
+        function disconnectBluetooth() {
+            if (bluetoothDevice && bluetoothDevice.gatt.connected) {
+                bluetoothDevice.gatt.disconnect();
+            }
+        }
+
+        function onDisconnected() {
+            log(`Bluetooth disconnected`, "log-warn");
+            document.getElementById('btStatusText').innerHTML = "Disconnected 🔴";
+            document.getElementById('connectBtn').style.display = 'block';
+            document.getElementById('disconnectBtn').style.display = 'none';
+        }
+
+        function handleIncomingData(event) {
+            const chunk = new TextDecoder().decode(event.target.value);
+            rxBuffer += chunk;
+            
+            if (rxBuffer.includes('\n')) {
+                const lines = rxBuffer.split('\n');
+                for (let i = 0; i < lines.length - 1; i++) {
+                    processMessage(lines[i].trim());
+                }
+                rxBuffer = lines[lines.length - 1]; 
+            }
+        }
+
+        function processMessage(data) {
+            if (!data) return;
+            log(`BLE Rx: ${data}`, 'log-sys');
+
+            if (data === "fall") {
+                updateUIState('fall', 'alert');
+                log("Fall event triggered. Sending API req...", 'log-warn');
+                sendTelegram("URGENT: Elderly fall detected. Immediate assistance required.");
+            } 
+            else if (data === "stop") {
+                updateUIState('fall', 'safe');
+                log("Alarm dismissed via stop command.", 'log-info');
+                sendTelegram("UPDATE: Fall alarm manually resolved.");
+            }
+            else if (data === "med_open") {
+                updateUIState('med', 'open');
+                log("Medication box opened.", 'log-info');
+                sendTelegram("INFO: Medicine box opened.");
+            }
+        }
+
+        function sendTelegram(text) {
+            const token = document.getElementById('tgToken').value.trim();
+            const chatId = document.getElementById('tgChatId').value.trim();
+
+            if (!token || !chatId) {
+                log("API skipped: Telegram credentials missing.", "log-err");
+                return;
+            }
+
+            const url = `https://api.telegram.org/bot${token}/sendMessage`;
+            
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: chatId, text: text })
+            })
+            .then(response => {
+                if (response.ok) {
+                    log("Telegram push successful", "log-info");
+                } else {
+                    log(`Telegram API failed with status ${response.status}`, "log-err");
+                }
+            })
+            .catch(error => {
+                log(`Telegram request error: ${error.message}`, "log-err");
+            });
+        }
+    
+        async function sendReminder() {
+            if (!btWriteCharacteristic) {
+                alert("Bluetooth is not connected!");
+                return;
+            }
+            try {
+                const data = new TextEncoder().encode("remind\n");
+                await btWriteCharacteristic.writeValue(data);
+                log("Sent Medication Reminder to Hub", "log-info");
+            } catch (error) {
+                log(`Failed to send reminder: ${error.message}`, "log-err");
+            }
+        }
+    </script>
+</body>
+</html>
