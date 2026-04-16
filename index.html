@@ -288,7 +288,7 @@
                 }
             } else if (type === 'med') {
                 medPanel.style.borderColor = "var(--success)";
-                medStatus.innerText = "🟢 Box Opened";
+                medStatus.innerText = "🟢 Box Opening";
                 medStatus.style.color = "var(--success)";
                 
                 // reset visually after 5s
@@ -374,8 +374,8 @@
             }
             else if (data === "med_open") {
                 updateUIState('med', 'open');
-                log("Medication box opened.", 'log-info');
-                sendTelegram("INFO: Medicine box opened.");
+                log("Medication box opening.", 'log-info');
+                sendTelegram("INFO: Medicine box opening.");
             }
         }
 
